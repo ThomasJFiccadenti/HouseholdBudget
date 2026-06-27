@@ -1,9 +1,10 @@
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog
 
 
 class Model:
-    DEFAULT_DIR = "./input/"
+    DEFAULT_DIR = Path("./input/").resolve()
 
     def __init__(self):
         self._bank_stmt_directory = Model.DEFAULT_DIR
@@ -21,24 +22,29 @@ class View(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Budget App")
-        self.minsize(200, 200)
-        self.maxsize(500, 500)
-        self.geometry("300x300+50+50")
+        self.minsize(1000, 300)
+        self.maxsize(1000, 300)
+        self.geometry("1000x300+50+50")
 
         self._init_ui()
 
     def _init_ui(self):
+
         browse_frame = tk.Frame(self)
-        browse_frame.pack(expand=True, fill="x", padx=20, pady=10)
+        browse_frame.grid(row=0, column=0)
 
-        self.browse_btn = tk.Button(browse_frame, text="Browse")
-        self.browse_btn.pack(side="left", expand=True, fill="x")
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
-        self.browse_result_label = tk.Label(self, text="Value: 0", font=("Arial", 16))
-        self.browse_result_label.pack(expand=True, pady=10)
+        self.browse_result_label = tk.Label(browse_frame, font=("Arial", 12))
+        self.browse_result_label.grid(column=0, row=2, padx=20)
+
+        self.browse_btn = tk.Button(browse_frame, text="Browse", font=("Arial", 12))
+        self.browse_btn.grid(column=0, row=1)
 
     def update_browse_label(self, new_directory: str):
-        self.browse_result_label.config(text=new_directory)
+        if new_directory != "":
+            self.browse_result_label.config(text=new_directory)
 
 
 class Controller:
@@ -58,6 +64,9 @@ class Controller:
         )
         self.model._bank_stmt_directory = seleced_path
         self.view.update_browse_label(self.model._bank_stmt_directory)
+
+    def extract_foldername(dir_path: str):
+        return
 
 
 app_model = Model()
