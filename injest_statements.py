@@ -134,6 +134,7 @@ def read_chase_card(csv_reader):
     return result_arr
 
 
+# amazon purchases generated with "Amazon Order History Reporter" Chrome extension
 def read_amazon_purchases(csv_reader):
     result_arr = []
 
