@@ -1,17 +1,18 @@
 import csv
 import hashlib
+from pathlib import Path
 
 # test_path = "./input/BOABlueCard5511/currentTransaction_5511.csv"
 # test_path = "./input/BOAChecking3236/Checking_2026_06_28.csv"
 # test_path = "./input/ValleyHYS8300/Valley_2026_06_28.csv"
 # test_path = "./input/AmazonChase4147/chase_transactions.csv"
-test_path = "./input/AmazonOrders/amazon_items.csv"
+# test_path = "./input/AmazonOrders/amazon_items.csv"
 
 # Transaction schema:
-#     "Posted Date"
+#     "Date"
 #     "Payee"
 #     "Amount"
-#     "Hash"
+#     "Category" (Amazon items only)
 
 
 def hash_row(row: dict):
@@ -53,13 +54,11 @@ def read_boa_cc_stmt(csv_reader):
 
     for row in csv_reader:
         row_dict = dict(zip(headers, row))
-        row_hash = hash_row(row_dict)
 
         transaction = {
             "Date": row_dict["Posted Date"],
             "Payee": row_dict["Payee"],
             "Amount": row_dict["Amount"],
-            "Hash": row_hash,
         }
 
         result_arr.append(transaction)
@@ -75,13 +74,11 @@ def read_boa_checking(csv_reader):
 
     for row in csv_reader:
         row_dict = dict(zip(headers, row))
-        row_hash = hash_row(row_dict)
 
         transaction = {
             "Date": row_dict["Date"],
             "Payee": row_dict["Description"],
             "Amount": row_dict["Amount"],
-            "Hash": row_hash,
         }
 
         result_arr.append(transaction)
@@ -98,15 +95,13 @@ def read_valley_hys(csv_reader):
 
     for row in csv_reader:
         row_dict = dict(zip(headers, row))
-        row_hash = hash_row(row_dict)
-        print(row_dict)
+
         transaction = {
             "Date": row_dict["Date"],
             "Payee": row_dict["Description"],
             "Amount": row_dict["Amount Credit"]
             if "CREDIT" in row_dict["Description"]
             else row_dict["Amount Debit"],
-            "Hash": row_hash,
         }
 
         result_arr.append(transaction)
@@ -121,13 +116,11 @@ def read_chase_card(csv_reader):
 
     for row in csv_reader:
         row_dict = dict(zip(headers, row))
-        row_hash = hash_row(row_dict)
 
         transaction = {
             "Date": row_dict["Transaction Date"],
             "Payee": row_dict["Description"],
             "Amount": row_dict["Amount"],
-            "Hash": row_hash,
         }
 
         result_arr.append(transaction)
@@ -142,28 +135,51 @@ def read_amazon_purchases(csv_reader):
 
     for row in csv_reader:
         row_dict = dict(zip(headers, row))
-        row_hash = hash_row(row_dict)
 
         if row_dict["\ufefforder id"] != "order id":
             if row_dict["price"][1:] == "":
                 price = 0.0
             else:
-                print(row_dict["price"][1:])
-                print(row_dict["price"])
                 price = float(row_dict["price"][1:])
+
+            item_category = (
+                "BLANK"
+                if row_dict["category"].split("›")[0] == ""
+                else row_dict["category"].split("›")[0]
+            )
+
+            item_name = row_dict["description"].split(",")[0]
+            if len(item_name) > 100:
+                item_name = item_name[:101]
 
             transaction = {
                 "Date": row_dict["order date"],
-                "Payee": row_dict["description"],
+                "Payee": item_category + "|" + item_name,
                 "Amount": float(row_dict["quantity"]) * price,
-                "Hash": row_hash,
-                "Category": row_dict["category"],
             }
 
             result_arr.append(transaction)
     return result_arr
 
 
-transactions = get_transactions(test_path)
-for transaction in transactions:
-    print(transaction)
+# transactions = get_transactions(test_path)
+# for transaction in transactions:
+#     print(transaction)
+
+root_dir = Path("./input/")
+
+all_transactions = []
+for path in root_dir.rglob("*"):
+    if (
+        not path.is_dir()
+        and str(path) != "input\\.gitignore"
+        and str(path) != "input\\output.csv"
+    ):
+        print(path.as_posix())
+        all_transactions += get_transactions(path.as_posix())
+
+
+with open("./output.csv", "w", newline="") as file:
+    writer = csv.DictWriter(file, fieldnames=list(all_transactions[0].keys()))
+    writer.writeheader()
+    writer.writerows(all_transactions)
