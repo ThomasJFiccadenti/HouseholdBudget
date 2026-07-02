@@ -1,5 +1,4 @@
 import csv
-import hashlib
 from pathlib import Path
 
 # test_path = "./input/BOABlueCard5511/currentTransaction_5511.csv"
@@ -13,14 +12,6 @@ from pathlib import Path
 #     "Payee"
 #     "Amount"
 #     "Category" (Amazon items only)
-
-
-def hash_row(row: dict):
-    values_orderby_keys = [str(row[key]) for key in sorted(row.keys())]
-    values_str = "|".join(values_orderby_keys)
-    row_hash = hashlib.sha256(values_str.encode("utf-8")).hexdigest()
-
-    return row_hash
 
 
 def get_transactions(statement_csv_path: str):
