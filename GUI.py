@@ -1,8 +1,10 @@
 import csv
 import tkinter as tk
+import sqlite3
 from pathlib import Path
 from tkinter import filedialog
 
+DB_PATH = "./cache/BudgetApp.py"
 
 class Model:
     DEFAULT_DIR = Path("./input/")
@@ -280,7 +282,9 @@ class Bankreader:
                 result_arr.append(transaction)
         return result_arr
 
-
+class sqliteDB:
+    def __init__(self, db_path:str):
+        self.conn = sqlite3.connect(db_path)
 app_model = Model()
 app_view = View()
 app_controller = Controller(app_model, app_view)
