@@ -58,6 +58,7 @@ KEY_WORD_RULES_DB_COLS = """
 
 
 def main_menu():
+    print("Welcome to the Ficcadenti Budget App")
     while True:
         menu_selection = inquirer.select(
             message="Select an action:",
@@ -81,7 +82,6 @@ def main_menu():
 
         else:
             return
-    print("Welcome to the Ficcadenti Budget App")
 
 
 def write_to_csv(enriched_transactions):
@@ -95,30 +95,36 @@ def write_to_csv(enriched_transactions):
 def update_transactions():
     transactions_by_source = read_transactions_from_file()
 
-    enriched_transactions = []
-    for source_nm in transactions_by_source.keys():
-        if source_nm == "AmazonPurchases":
-            enriched_transactions += enrich_amazon_purchases(
-                transactions_by_source, source_nm
-            )
-        elif "BOA" in source_nm:
-            enriched_transactions += enrich_boa_transactions(
-                transactions_by_source, source_nm
-            )
-        elif source_nm == "ValleyHYS_8300":
-            enriched_transactions += enrich_valley_transactions(
-                transactions_by_source, source_nm
-            )
+    enriched_transactions = standardize_bank_statements(transactions_by_source)
 
     return enriched_transactions
 
 
-def enrich_boa_transactions(transactions_by_source, source_nm):
+def standardize_bank_statements(transactions_by_source):
+    standardized_trans = []
+    for source_nm in transactions_by_source.keys():
+        if source_nm == "AmazonPurchases":
+            standardized_trans += standardize_amazon_purchases(
+                transactions_by_source, source_nm
+            )
+        elif "BOA" in source_nm:
+            standardized_trans += standardize_boa_transactions(
+                transactions_by_source, source_nm
+            )
+        elif source_nm == "ValleyHYS_8300":
+            standardized_trans += standardize_valley_transactions(
+                transactions_by_source, source_nm
+            )
+
+    return standardized_trans
+
+
+def standardize_boa_transactions(transactions_by_source, source_nm):
     for key in BOA_TRANS_CFG.keys():
         if key in source_nm:
             boa_config = BOA_TRANS_CFG[key]
 
-    enriched_boa_transactions = []
+    standardized_boa_transactions = []
     for boa_trans in transactions_by_source[source_nm]:
         # boa config returns the corresponding bank statement col name for each enriched
         # transaction col name
@@ -131,7 +137,7 @@ def enrich_boa_transactions(transactions_by_source, source_nm):
         amount = amount if amount != "" else "0.00"  # Set to 0.00 if entry is blank
         amount = round(float(amount), 2)
 
-        trans_enriched = {
+        standardized_trans = {
             SOURCE_COL_NM: source_nm,
             DATE_COL_NM: boa_trans[boa_config[DATE_COL_NM]],
             DESCRIPTION_COL_NM: boa_trans[boa_config[DESCRIPTION_COL_NM]],
@@ -139,13 +145,13 @@ def enrich_boa_transactions(transactions_by_source, source_nm):
             HASH_COL_NM: hash_transaction(boa_trans),
         }
 
-        enriched_boa_transactions.append(trans_enriched)
+        standardized_boa_transactions.append(standardized_trans)
 
-    return enriched_boa_transactions
+    return standardized_boa_transactions
 
 
-def enrich_valley_transactions(transactions_by_source, source_nm):
-    enriched_valley_transactions = []
+def standardize_valley_transactions(transactions_by_source, source_nm):
+    standardized_valley_transactions = []
     for valley_trans in transactions_by_source[source_nm]:
         if "DEBIT" in valley_trans["Description"]:
             amount = valley_trans["Amount Debit"]
@@ -154,7 +160,7 @@ def enrich_valley_transactions(transactions_by_source, source_nm):
 
         amount = round(float(amount), 2)
 
-        trans_enriched = {
+        standardized_trans = {
             SOURCE_COL_NM: source_nm,
             DATE_COL_NM: valley_trans["Date"],
             DESCRIPTION_COL_NM: valley_trans["Memo"],
@@ -162,13 +168,13 @@ def enrich_valley_transactions(transactions_by_source, source_nm):
             HASH_COL_NM: hash_transaction(valley_trans),
         }
 
-        enriched_valley_transactions.append(trans_enriched)
-    return enriched_valley_transactions
+        standardized_valley_transactions.append(standardized_trans)
+    return standardized_valley_transactions
 
 
-def enrich_amazon_purchases(transactions_by_source, source_nm):
+def standardize_amazon_purchases(transactions_by_source, source_nm):
     # last row is the headers repeated
-    enriched_amazon_transactions = []
+    standardized_amazon_transactions = []
     for amazon_transaction in transactions_by_source[source_nm][:-1]:
         order_no = amazon_transaction["order id"]  # Amazon Order Identifier
         item_no = amazon_transaction["ASIN"]  # Amazon Item Identifer
@@ -179,7 +185,7 @@ def enrich_amazon_purchases(transactions_by_source, source_nm):
         price = float(price if price[1:] != "" else 0.0)
         price = round(price, 2) * -1  # amazon purchases are expenses
 
-        trans_enriched = {
+        standardized_trans = {
             SOURCE_COL_NM: source_nm,
             DATE_COL_NM: amazon_transaction["order date"],
             DESCRIPTION_COL_NM: amazon_cat + "|" + description,
@@ -187,8 +193,8 @@ def enrich_amazon_purchases(transactions_by_source, source_nm):
             HASH_COL_NM: hash_str(order_no + item_no),
         }
 
-        enriched_amazon_transactions.append(trans_enriched)
-    return enriched_amazon_transactions
+        standardized_amazon_transactions.append(standardized_trans)
+    return standardized_amazon_transactions
 
 
 def hash_transaction(transaction: dict):
