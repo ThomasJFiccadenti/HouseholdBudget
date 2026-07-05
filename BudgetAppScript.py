@@ -35,7 +35,7 @@ BOA_TRANS_CFG = {
 # Budget Categories
 BUDGET_CATEGORIES = {
     "Income": ["HCA Salary", "HCA Bonus", "Inheritance", "Gifts", "Other"],
-    "House": ["Essential", "Discretionary"],
+    "House": ["Mortgage", "Utilities", "Discretionary"],
     "Transportation": ["Gasoline", "Insurance", "Car Payments"],
     "Vacation": None,
     "Food": ["Groceries", "Eating Out"],
@@ -49,7 +49,7 @@ BUDGET_CATEGORIES = {
 
 
 # SQLite Table Definitions
-KEY_WORD_RULES = """
+KEY_WORD_RULES_DB_COLS = """
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     key_words TEXT NOT NULL,
     primary_cat TEXT NOT NULL,
@@ -90,16 +90,6 @@ def write_to_csv(enriched_transactions):
         csv_writer.writeheader()
         csv_writer.writerows(enriched_transactions)
     print(len(enriched_transactions))
-
-
-def create_tables():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS 
-
-    """)
 
 
 def update_transactions():
@@ -259,40 +249,176 @@ def key_word_rules_menu():
         menu_selection = inquirer.select(
             message="Select an action:",
             choices=[
-                Choice(
-                    name="View Keyword Rules",
-                ),
+                Choice(name="View Keyword Rules", value="View Keyword Rules"),
                 "Add Key Word Rule",
+                "Remove Key Word Rule",
                 "Exit",
             ],
             default=None,
         ).execute()
 
         if menu_selection == "View Keyword Rules":
-            return
+            view_key_word_rules()
         elif menu_selection == "Add Key Word Rule":
-            return
+            add_key_word_rules()
+        elif menu_selection == "Remove Key Word Rule":
+            remove_key_word_rules()
         else:
             return
+
+
+def view_key_word_rules():
+    rows = get_key_word_rules_from_db()
+
+    if len(rows) == 0:
+        print("No Keyword Rules Saved")
+    else:
+        for row in rows:
+            print(row)
+
+
+def remove_key_word_rules():
+
+    while True:
+        rows = get_key_word_rules_from_db()
+
+        if len(rows) == 0:
+            print("No key word rules saved.")
+            return
+
+        key_word_rules = []
+        for row in rows:
+            key_word_rule = row[1] + "->" + row[2] + "+" + row[3]
+            key_word_rules.append(key_word_rule)
+
+        key_word_rules.append("Exit")
+
+        delete_selection = inquirer.select(
+            message="Select an action:",
+            choices=key_word_rules,
+            default=None,
+        ).execute()
+
+        key_word_to_delete = delete_selection.split("->")[0]
+
+        if delete_selection == "Exit":
+            return
+        elif delete_selection is not None:
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+
+            delete_query = "DELETE FROM key_word_rules WHERE key_words = ?;"
+
+            cursor.execute(delete_query, (key_word_to_delete,))
+            conn.commit()
+            conn.close()
 
 
 def add_key_word_rules():
+    create_key_word_db()
     while True:
-        new_key_word = inquirer.text(
-            message="Enter new key word phrase:", completer={"Exit"}
-        ).execute()
+        new_key_words = get_key_word_from_user()
+        new_key_words = new_key_words.strip()
 
-        if new_key_word == "Exit":
+        primary_cat = None
+        secondary_cat = None
+
+        print("'" + new_key_words + "'")
+        if new_key_words == "Cancel":
             return
-        else:
-            primary_key = inquirer.select(
-                message="Select a Primary Category", choices=BUDGET_CATEGORIES.keys()
-            ).execute()
+        if new_key_words is not None and new_key_words != "":
+            primary_cat, secondary_cat = get_categories_from_user()
 
-            # if BUDGET_CATEGORIES[primary_key] is not None:
-            #     secondary_key = inquirer.select(
-            #         message=""
-            #     )
+            if primary_cat != "Cancel" and secondary_cat != "Cancel":
+                key_word_rules = get_key_word_rules_from_db()
+                if new_key_words in (kwrd[1] for kwrd in key_word_rules):
+                    print("Key Words already in DB")
+                else:
+                    add_key_word_rule_to_db(new_key_words, primary_cat, secondary_cat)
+
+
+def get_key_word_rules_from_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    select_key_words_query = """
+            SELECT * FROM key_word_rules
+        """
+    cursor.execute(select_key_words_query)
+    rows = cursor.fetchall()
+    conn.commit()
+    conn.close()
+    return rows
+
+
+def add_key_word_rule_to_db(new_key_words, primary_cat, secondary_cat):
+    conn = sqlite3.connect(DB_FILE)
+
+    cursor = conn.cursor()
+
+    insert_key_words_query = (
+        "INSERT INTO key_word_rules (key_words, primary_cat, secondary_cat)"
+    )
+    insert_key_words_query = (
+        insert_key_words_query
+        + "VALUES ('"
+        + new_key_words
+        + "','"
+        + primary_cat
+        + "','"
+        + secondary_cat
+        + "');"
+    )
+
+    cursor.execute(insert_key_words_query)
+
+    conn.commit()
+
+    conn.close()
+
+
+def get_key_word_from_user():
+    new_key_word = inquirer.text(
+        message="Enter new key word phrase:", completer={"Cancel": None}
+    ).execute()
+
+    return new_key_word
+
+
+def get_categories_from_user():
+    prim_choices = list(BUDGET_CATEGORIES.keys()).copy()
+    prim_choices.append("Cancel")
+    primary_cat = inquirer.select(
+        message="Select a Primary Category",
+        choices=prim_choices,
+    ).execute()
+
+    if primary_cat != "Cancel" and BUDGET_CATEGORIES[primary_cat] is not None:
+        sec_choices = BUDGET_CATEGORIES[primary_cat].copy()
+        sec_choices.append("Cancel")
+        secondary_cat = inquirer.select(
+            message="Select a Primary Category",
+            choices=sec_choices,
+        ).execute()
+    else:
+        secondary_cat = "N/A"
+    return primary_cat, secondary_cat
+
+
+def create_key_word_db():
+    conn = sqlite3.connect(DB_FILE)
+
+    cursor = conn.cursor()
+
+    create_db_query = (
+        "CREATE TABLE IF NOT EXISTS key_word_rules (" + KEY_WORD_RULES_DB_COLS + ")"
+    )
+
+    cursor.execute(create_db_query)
+
+    conn.commit()
+
+    conn.close()
 
 
 def main():
