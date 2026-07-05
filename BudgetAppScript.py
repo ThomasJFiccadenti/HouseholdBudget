@@ -34,15 +34,25 @@ BOA_TRANS_CFG = {
 
 # Budget Categories
 BUDGET_CATEGORIES = {
-    "Income": ["HCA Salary", "HCA Bonus", "Inheritance", "Gifts", "Other"],
-    "House": ["Mortgage", "Utilities", "Discretionary"],
-    "Transportation": ["Gasoline", "Insurance", "Car Payments"],
-    "Vacation": None,
+    "Income": ["HCA Salary", "Inheritance", "Gifts", "Emergency Fund", "Other"],
+    "House": [
+        "Mortgage",
+        "Electricity",
+        "Gas",
+        "Internet",
+        "Water",
+        "Trash",
+        "Pest",
+        "Discretionary",
+    ],
+    "Transportation": ["Gasoline", "Insurance", "Car Payments", "Ride Share"],
+    "Vacation": ["Hotel", "Food", "Transportation", "Other"],
     "Food": ["Groceries", "Eating Out"],
     "Health": ["Perscriptions", "Doctors Visits", "Discretionary"],
     "Digital": ["Subscriptions", "Discretionary"],
     "Starting Checking Balance": None,
     "Investment": None,
+    "Emergency Fund Deposit": None,
     "Other": None,
     "Ignore": None,
 }
@@ -95,9 +105,11 @@ def write_to_csv(enriched_transactions):
 def update_transactions():
     transactions_by_source = read_transactions_from_file()
 
-    enriched_transactions = standardize_bank_statements(transactions_by_source)
+    standardized_transactions = standardize_bank_statements(transactions_by_source)
 
-    return enriched_transactions
+    categorize_with_key_words(standardized_transactions)
+
+    return standardized_transactions
 
 
 def standardize_bank_statements(transactions_by_source):
@@ -117,6 +129,16 @@ def standardize_bank_statements(transactions_by_source):
             )
 
     return standardized_trans
+
+
+def categorize_with_key_words(std_transactions):
+    key_word_rules = get_key_word_rules_from_db()
+
+    if len(key_word_rules) == 0:
+        return
+
+    for rule in key_word_rules:
+        print(rule)
 
 
 def standardize_boa_transactions(transactions_by_source, source_nm):
@@ -159,11 +181,12 @@ def standardize_valley_transactions(transactions_by_source, source_nm):
             amount = valley_trans["Amount Credit"]
 
         amount = round(float(amount), 2)
+        description = "|".join((valley_trans["Description"], valley_trans["Memo"]))
 
         standardized_trans = {
             SOURCE_COL_NM: source_nm,
             DATE_COL_NM: valley_trans["Date"],
-            DESCRIPTION_COL_NM: valley_trans["Memo"],
+            DESCRIPTION_COL_NM: description,
             AMOUNT_COL_NM: amount,
             HASH_COL_NM: hash_transaction(valley_trans),
         }
@@ -279,8 +302,9 @@ def view_key_word_rules():
     if len(rows) == 0:
         print("No Keyword Rules Saved")
     else:
-        for row in rows:
-            print(row)
+        sorted_rows = sorted(rows, key=lambda x: x[1])  # Sort by key word
+        for row in sorted_rows:
+            print(" | ".join([str(e) for e in row[1:]]))  # exclude id from result
 
 
 def remove_key_word_rules():
@@ -362,21 +386,10 @@ def add_key_word_rule_to_db(new_key_words, primary_cat, secondary_cat):
 
     cursor = conn.cursor()
 
-    insert_key_words_query = (
-        "INSERT INTO key_word_rules (key_words, primary_cat, secondary_cat)"
-    )
-    insert_key_words_query = (
-        insert_key_words_query
-        + "VALUES ('"
-        + new_key_words
-        + "','"
-        + primary_cat
-        + "','"
-        + secondary_cat
-        + "');"
-    )
+    insert_key_words_query = "INSERT INTO key_word_rules (key_words, primary_cat, secondary_cat) VALUES (?,?,?);"
+    params = (new_key_words, primary_cat, secondary_cat)
 
-    cursor.execute(insert_key_words_query)
+    cursor.execute(insert_key_words_query, params)
 
     conn.commit()
 
